@@ -12,7 +12,9 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 
-const DEFAULT_MODEL = "gpt-5";
+const DEFAULT_MODEL = "gpt-6-astra";
+const POLL_INTERVAL_MS = 15_000;
+const TIMEOUT_MS = 40 * 60_000;
 const TZ = "Europe/London";
 
 function londonNow() {
@@ -43,27 +45,62 @@ async function loadPrompt() {
   return prompt;
 }
 
-async function askOpenAI(prompt, model) {
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
+// Context the model can't know on its own: today's date, and that the reply
+// goes straight onto the website.
+function preamble(now) {
+  return [
+    `Today is ${now.weekday} ${now.date} (London time).`,
+    "Your reply is published unedited on a website as Markdown. Output only the finished piece in Markdown — no preamble, no questions, no notes to the editor.",
+  ].join("\n");
+}
+
+async function openai(path, init = {}) {
+  const res = await fetch(`https://api.openai.com/v1${path}`, {
+    ...init,
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, input: prompt }),
   });
   const body = await res.json();
   if (!res.ok) {
     throw new Error(`OpenAI API ${res.status}: ${body.error?.message ?? JSON.stringify(body)}`);
   }
-  const text = body.output
+  return body;
+}
+
+// Runs in background mode and polls, because web research can take longer
+// than a single HTTP request will stay open.
+async function askOpenAI(prompt, model) {
+  let response = await openai("/responses", {
+    method: "POST",
+    body: JSON.stringify({
+      model,
+      input: prompt,
+      tools: [{ type: "web_search" }],
+      background: true,
+    }),
+  });
+
+  const started = Date.now();
+  while (response.status === "queued" || response.status === "in_progress") {
+    if (Date.now() - started > TIMEOUT_MS) throw new Error(`Timed out waiting for ${response.id}`);
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    response = await openai(`/responses/${response.id}`);
+    console.log(`  ${response.status} (${Math.round((Date.now() - started) / 1000)}s)`);
+  }
+  if (response.status !== "completed") {
+    throw new Error(`Response ${response.id} ${response.status}: ${JSON.stringify(response.error ?? response.incomplete_details)}`);
+  }
+
+  const text = response.output
     ?.filter((item) => item.type === "message")
     .flatMap((item) => item.content)
     .filter((c) => c.type === "output_text")
     .map((c) => c.text)
     .join("\n\n")
     .trim();
-  if (!text) throw new Error(`OpenAI returned no text: ${JSON.stringify(body)}`);
+  if (!text) throw new Error(`OpenAI returned no text: ${JSON.stringify(response)}`);
   return text;
 }
 
@@ -84,7 +121,7 @@ async function main() {
 
   const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
   console.log(`Generating ${file} with ${model}…`);
-  const text = await askOpenAI(await loadPrompt(), model);
+  const text = await askOpenAI(`${preamble(now)}\n\n${await loadPrompt()}`, model);
 
   await mkdir("posts", { recursive: true });
   await writeFile(file, text + "\n");
