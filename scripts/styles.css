@@ -1,0 +1,60 @@
+:root {
+  --bg: #fbfaf7;
+  --fg: #1d1c1a;
+  --muted: #6b6862;
+  --rule: #e4e1da;
+  --accent: #b4441c;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161514;
+    --fg: #ecebe7;
+    --muted: #9a968e;
+    --rule: #2e2c29;
+    --accent: #f08a5d;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 18px/1.65 Charter, "Iowan Old Style", Georgia, serif;
+}
+.site-header, main, .site-footer {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+.site-header { padding-top: 3rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--rule); }
+.site-title {
+  font: 700 1.6rem/1.2 system-ui, sans-serif;
+  color: var(--fg);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+.site-tagline { margin: 0.25rem 0 0; color: var(--muted); font-family: system-ui, sans-serif; font-size: 0.95rem; }
+main { padding-top: 2rem; padding-bottom: 3rem; }
+article time {
+  display: block;
+  font: 600 0.8rem/1 system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+.content h1, .content h2, .content h3 { font-family: system-ui, sans-serif; line-height: 1.25; letter-spacing: -0.01em; }
+.content h1 { font-size: 1.9rem; margin-top: 0; }
+.content a, .archive a, .site-footer a { color: var(--accent); }
+.content img { max-width: 100%; height: auto; }
+.content pre { overflow-x: auto; padding: 1rem; background: var(--rule); border-radius: 6px; font-size: 0.85rem; }
+.content blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 3px solid var(--accent); color: var(--muted); }
+.content table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+.content th, .content td { border: 1px solid var(--rule); padding: 0.4rem 0.6rem; text-align: left; }
+.archive { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); font-family: system-ui, sans-serif; }
+.archive h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.archive ul { list-style: none; padding: 0; }
+.archive li { padding: 0.3rem 0; }
+.empty { color: var(--muted); font-style: italic; }
+.site-footer { padding-bottom: 3rem; font: 0.9rem system-ui, sans-serif; }

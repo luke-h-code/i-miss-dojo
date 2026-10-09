@@ -1,0 +1,16 @@
+{
+  "name": "i-miss-dojo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "npm run build && npx --yes serve _site"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "marked": "^18.1.0"
+  }
+}
