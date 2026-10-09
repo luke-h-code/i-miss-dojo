@@ -50,7 +50,7 @@ async function loadPrompt() {
 function preamble(now) {
   return [
     `Today is ${now.weekday} ${now.date} (London time).`,
-    "Your reply is published unedited on a website as Markdown. Output only the finished piece in Markdown — no preamble, no questions, no notes to the editor.",
+    "Your reply is published unedited on a website as Markdown. Output only the finished piece in Markdown, with no preamble, no questions, no notes to the editor.",
   ].join("\n");
 }
 
