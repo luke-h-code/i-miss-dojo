@@ -40,6 +40,7 @@ ${body}
 </main>
 <footer class="site-footer">
   <a href="${root}#archive">Archive</a>
+  <p class="disclaimer">This content is AI-generated.</p>
 </footer>
 </body>
 </html>

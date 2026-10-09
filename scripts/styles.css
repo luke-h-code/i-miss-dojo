@@ -62,3 +62,4 @@ a:hover { text-decoration: underline; }
 .archive ul { padding-left: 2em; margin: 0; }
 .empty { color: var(--muted); }
 .site-footer { padding-bottom: 2rem; font-size: 0.875rem; }
+.disclaimer { margin: 0.5rem 0 0; color: var(--muted); font-size: 0.75rem; }
