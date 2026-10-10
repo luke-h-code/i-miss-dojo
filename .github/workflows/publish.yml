@@ -15,6 +15,10 @@ on:
         description: "Generate a new post now (ignores the Wednesday 8am check)"
         type: boolean
         default: false
+      photos:
+        description: "Add photos to the latest post (if it has none)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -50,8 +54,15 @@ jobs:
           FORCE: ${{ inputs.generate && 'true' || 'false' }}
         run: npm run generate
 
+      - name: Add photos to the latest post
+        if: inputs.photos
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+        run: npm run images -- "posts/$(ls posts | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$' | sort | tail -1)"
+
       - name: Commit new post
-        if: github.event_name == 'schedule' || inputs.generate
+        if: github.event_name == 'schedule' || inputs.generate || inputs.photos
         run: |
           git add posts
           if git diff --cached --quiet; then
@@ -59,7 +70,7 @@ jobs:
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Add post for $(TZ=Europe/London date +%F)"
+            git commit -m "${{ inputs.photos && !inputs.generate && 'Add photos for' || 'Add post for' }} $(TZ=Europe/London date +%F)"
             git push
           fi
 

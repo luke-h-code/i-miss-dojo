@@ -79,10 +79,12 @@ export async function addImages(markdown, date, judge = judgeWithAI) {
     ];
     for (const candidate of all) {
       if (pick.queue.length === CANDIDATES_PER_PICK) break;
-      if (seenUrls.has(candidate.url)) continue;
-      seenUrls.add(candidate.url);
+      const key = sameImage(candidate.url);
+      if (seenUrls.has(key)) continue;
+      seenUrls.add(key);
       pick.queue.push(candidate);
     }
+    console.log(`  ${pick.heading}: ${pick.queue.length} candidates from ${pick.pages.length} page(s)`);
   });
 
   const seenHashes = new Set();
@@ -162,6 +164,13 @@ function findPicks(lines) {
   return picks;
 }
 
+// Sites serve one photo at several sizes, like photo-1024x683.jpg and
+// photo-2048x1365.jpg?w=800. Treat those as the same photo.
+function sameImage(url) {
+  const u = new URL(url);
+  return u.host + u.pathname.replace(/-\d+x\d+(?=\.\w+$)/, "");
+}
+
 function cleanUrl(url) {
   try {
     const u = new URL(url);
@@ -190,7 +199,11 @@ async function fetchPage(url) {
 function pageImages(html, base) {
   const resolve = (src) => {
     try {
-      const url = new URL(src.trim(), base).toString();
+      const cleaned = src
+        .replace(/\\/g, "") // escaped quotes from JSON inside attributes
+        .replace(/^["'\s]+|["'\s]+$/g, "")
+        .replace(/^https?:\/\/[^/]+?(https?):?\/\//i, "$1://"); // "http://a.comhttps//cdn.a.com/x.jpg"
+      const url = new URL(cleaned, base).toString();
       return SKIP_URL.test(url) ? [] : [url];
     } catch {
       return [];
@@ -234,7 +247,7 @@ async function nextPhotos(pick, count, seenHashes) {
   const passed = [];
   while (passed.length < count && pick.queue.length > 0) {
     const { url, page } = pick.queue.shift();
-    const photo = await download(url);
+    const photo = await download(url, page);
     if (photo.reject) {
       console.log(`  skip ${photo.reject}: ${url}`);
     } else if (seenHashes.has(photo.hash)) {
@@ -247,10 +260,12 @@ async function nextPhotos(pick, count, seenHashes) {
   return passed;
 }
 
-async function download(url) {
+// Some image hosts refuse requests that don't come from their own pages, so
+// say which page the photo is on.
+async function download(url, page) {
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT },
+      headers: { "User-Agent": USER_AGENT, Referer: page },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return { reject: `HTTP ${res.status}` };
