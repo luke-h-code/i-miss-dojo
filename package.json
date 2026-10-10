@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "generate": "node scripts/generate.mjs",
+    "images": "node scripts/images.mjs",
     "build": "node scripts/build.mjs",
     "preview": "npm run build && npx --yes serve _site"
   },

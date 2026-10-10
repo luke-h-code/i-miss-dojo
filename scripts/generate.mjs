@@ -1,4 +1,5 @@
-// Sends prompt.md to the OpenAI API and saves the reply as posts/YYYY-MM-DD.md.
+// Sends prompt.md to the OpenAI API and saves the reply as posts/YYYY-MM-DD.md,
+// with a few photos picked by scripts/images.mjs.
 //
 // Runs from GitHub Actions on Wednesdays. GitHub cron only speaks UTC, so the
 // workflow fires at both 07:00 and 08:00 UTC and this script decides whether
@@ -6,15 +7,14 @@
 //
 // Env:
 //   OPENAI_API_KEY  required
-//   OPENAI_MODEL    optional, defaults to DEFAULT_MODEL
+//   OPENAI_MODEL    optional, see scripts/openai.mjs
 //   FORCE=true      skip the day/time check (manual runs)
 
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { model, respond } from "./openai.mjs";
+import { addImages } from "./images.mjs";
 
-const DEFAULT_MODEL = "gpt-6-astra";
-const POLL_INTERVAL_MS = 15_000;
-const TIMEOUT_MS = 40 * 60_000;
 const TZ = "Europe/London";
 
 function londonNow() {
@@ -54,56 +54,6 @@ function preamble(now) {
   ].join("\n");
 }
 
-async function openai(path, init = {}) {
-  const res = await fetch(`https://api.openai.com/v1${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    throw new Error(`OpenAI API ${res.status}: ${body.error?.message ?? JSON.stringify(body)}`);
-  }
-  return body;
-}
-
-// Runs in background mode and polls, because web research can take longer
-// than a single HTTP request will stay open.
-async function askOpenAI(prompt, model) {
-  let response = await openai("/responses", {
-    method: "POST",
-    body: JSON.stringify({
-      model,
-      input: prompt,
-      tools: [{ type: "web_search" }],
-      background: true,
-    }),
-  });
-
-  const started = Date.now();
-  while (response.status === "queued" || response.status === "in_progress") {
-    if (Date.now() - started > TIMEOUT_MS) throw new Error(`Timed out waiting for ${response.id}`);
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    response = await openai(`/responses/${response.id}`);
-    console.log(`  ${response.status} (${Math.round((Date.now() - started) / 1000)}s)`);
-  }
-  if (response.status !== "completed") {
-    throw new Error(`Response ${response.id} ${response.status}: ${JSON.stringify(response.error ?? response.incomplete_details)}`);
-  }
-
-  const text = response.output
-    ?.filter((item) => item.type === "message")
-    .flatMap((item) => item.content)
-    .filter((c) => c.type === "output_text")
-    .map((c) => c.text)
-    .join("\n\n")
-    .trim();
-  if (!text) throw new Error(`OpenAI returned no text: ${JSON.stringify(response)}`);
-  return text;
-}
-
 async function main() {
   const force = process.env.FORCE === "true";
   const now = londonNow();
@@ -119,9 +69,18 @@ async function main() {
   }
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
 
-  const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
-  console.log(`Generating ${file} with ${model}…`);
-  const text = await askOpenAI(`${preamble(now)}\n\n${await loadPrompt()}`, model);
+  console.log(`Generating ${file} with ${model()}…`);
+  let text = await respond({
+    input: `${preamble(now)}\n\n${await loadPrompt()}`,
+    tools: [{ type: "web_search" }],
+  });
+
+  // Photos are a bonus. If anything goes wrong, publish without them.
+  try {
+    text = await addImages(text, now.date);
+  } catch (err) {
+    console.error(`Skipping photos: ${err.message}`);
+  }
 
   await mkdir("posts", { recursive: true });
   await writeFile(file, text + "\n");

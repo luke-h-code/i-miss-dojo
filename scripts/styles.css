@@ -44,7 +44,7 @@ a:hover { text-decoration: underline; }
 .content li + li { margin-top: 0.25em; }
 .content hr { height: 0.25em; margin: 1.5rem 0; padding: 0; border: 0; background: var(--rule); }
 .content blockquote { padding: 0 1em; color: var(--muted); border-left: 0.25em solid var(--rule); }
-.content img { max-width: 100%; height: auto; }
+.content img { display: block; max-width: 100%; height: auto; border-radius: 6px; }
 .content code {
   padding: 0.2em 0.4em;
   font: 85% ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

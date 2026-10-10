@@ -1,8 +1,10 @@
 // Renders posts/*.md into a static site in _site/.
 //   _site/index.html              latest post + archive
 //   _site/posts/YYYY-MM-DD/       one page per post
+//   _site/posts/images/           photos from posts/images/
 
-import { readdir, readFile, writeFile, mkdir, rm, copyFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readdir, readFile, writeFile, mkdir, rm, copyFile, cp } from "node:fs/promises";
 import { marked } from "marked";
 
 const OUT = "_site";
@@ -47,11 +49,15 @@ ${body}
 `;
 }
 
-function article(post) {
+// Posts refer to photos as images/… (relative to posts/, so they also show on
+// GitHub). The homepage and post pages sit at different depths, so point
+// those paths at the site root.
+function article(post, root) {
+  const markdown = post.markdown.replace(/(!\[[^\]]*\]\()images\//g, `$1${root}posts/images/`);
   return `<article>
   <time datetime="${post.date}">${prettyDate(post.date)}</time>
   <div class="content">
-${marked.parse(post.markdown)}
+${marked.parse(markdown)}
   </div>
 </article>`;
 }
@@ -81,18 +87,19 @@ posts.sort((a, b) => b.date.localeCompare(a.date));
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 await copyFile("scripts/styles.css", `${OUT}/styles.css`);
+if (existsSync("posts/images")) await cp("posts/images", `${OUT}/posts/images`, { recursive: true });
 
 for (const post of posts) {
   await mkdir(`${OUT}/posts/${post.date}`, { recursive: true });
   await writeFile(
     `${OUT}/posts/${post.date}/index.html`,
-    page({ title: `${prettyDate(post.date)} · ${config.title}`, body: article(post), root: "../../" }),
+    page({ title: `${prettyDate(post.date)} · ${config.title}`, body: article(post, "../../"), root: "../../" }),
   );
 }
 
 const [latest] = posts;
 const home = latest
-  ? article(latest) + "\n" + archive(posts)
+  ? article(latest, "") + "\n" + archive(posts)
   : `<p class="empty">Nothing here yet — the first one lands on Wednesday at 8am.</p>`;
 await writeFile(`${OUT}/index.html`, page({ title: config.title, body: home, root: "" }));
 
