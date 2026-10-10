@@ -57,7 +57,7 @@ function article(post, root) {
   return `<article>
   <time datetime="${post.date}">${prettyDate(post.date)}</time>
   <div class="content">
-${marked.parse(markdown)}
+${marked.parse(markdown).replace(/<img /g, '<img loading="lazy" decoding="async" ')}
   </div>
 </article>`;
 }

@@ -11,8 +11,9 @@
 //    rounds. If nothing has passed by then, it tries a few extra rounds before
 //    giving up and leaving the issue without photos.
 //
-// Chosen photos are saved to posts/images/ and placed under their pick's
-// heading, linking to the page they came from.
+// Every candidate is shrunk to a small WebP before judging, so the AI sees
+// what readers will. Chosen photos are saved to posts/images/ and placed
+// under their pick's heading, linking to the page they came from.
 //
 // Run on an existing post:  npm run images -- posts/YYYY-MM-DD.md
 
@@ -20,6 +21,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
+import sharp from "sharp";
 import { respond } from "./openai.mjs";
 
 const TARGET = 4; // photos per issue, at most
@@ -31,7 +33,9 @@ const PAGES_PER_PICK = 3;
 const CANDIDATES_PER_PICK = 10;
 const MIN_WIDTH = 800;
 const ASPECT = [0.6, 2.2]; // width / height
-const MAX_BYTES = 3_000_000;
+const MAX_BYTES = 15_000_000; // before shrinking
+const OUTPUT_WIDTH = 1344; // twice the 42rem column, for sharp phone and retina screens
+const WEBP_QUALITY = 78;
 const BATCH = 6; // photos per AI call
 const FETCH_TIMEOUT_MS = 15_000;
 const USER_AGENT = "Mozilla/5.0 (compatible; i-miss-dojo/1.0; +https://github.com/luke-h-code/i-miss-dojo)";
@@ -277,10 +281,25 @@ async function download(url, page) {
     if (size.width < MIN_WIDTH) return { reject: `too small (${size.width}×${size.height})` };
     const ratio = size.width / size.height;
     if (ratio < ASPECT[0] || ratio > ASPECT[1]) return { reject: `odd shape (${size.width}×${size.height})` };
-    return { ...size, bytes, hash: createHash("sha256").update(bytes).digest("hex") };
+    return {
+      width: size.width,
+      height: size.height,
+      ext: "webp",
+      mime: "image/webp",
+      bytes: await shrink(bytes),
+      hash: createHash("sha256").update(bytes).digest("hex"),
+    };
   } catch (err) {
     return { reject: err.name === "TimeoutError" ? "timed out" : "failed to load" };
   }
+}
+
+export function shrink(bytes) {
+  return sharp(bytes)
+    .rotate() // apply the camera's orientation before metadata is dropped
+    .resize({ width: OUTPUT_WIDTH, withoutEnlargement: true })
+    .webp({ quality: WEBP_QUALITY })
+    .toBuffer();
 }
 
 // Reads width and height from the file header, so no image library is needed.
@@ -373,7 +392,7 @@ function insertAt(lines, pick) {
   return /^\*\*[^*].*\*\*\s*$/.test(lines[i] ?? "") ? i + 1 : pick.line + 1;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const file = process.argv[2];
   const date = basename(file ?? "").match(/^\d{4}-\d{2}-\d{2}/)?.[0];
   if (!date) {
