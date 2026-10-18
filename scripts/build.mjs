@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile, mkdir, rm, copyFile, cp } from "node:fs/promises";
 import { marked } from "marked";
 import sharp from "sharp";
+import { tidyMarkdown } from "./editorial.mjs";
 
 const OUT = "_site";
 const FEED_ITEMS = 20;
@@ -49,7 +50,7 @@ function truncate(text, max = 155) {
 }
 
 const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
-const WEEKEND = new RegExp(`(?:(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\\s+)?\\d{1,2}\\b.*?\\b(?:${MONTHS})\\s+\\d{4}`);
+const WEEKEND = new RegExp(`(?:(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\\s+)?\\d{1,2}\\b.*?\\b(?:${MONTHS})\\s+\\d{4}`, "i");
 
 // Pulls a title, description, and share image out of a post. The weekend
 // comes from the first heading with a date in it, like
@@ -69,11 +70,11 @@ function postMeta(post) {
 
   const photo = post.markdown.match(/!\[[^\]]*\]\(images\/([^)\s]+)\)/)?.[1];
   const card = photo && `posts/images/${post.date}-share.jpg`;
-  const title = `Things to do in London, ${weekend ?? `week of ${prettyDate(post.date)}`}`;
+  const title = `Things to do in London, ${weekend ?? `week of ${prettyDate(post.date)}`}`.toLowerCase();
   return {
     title,
-    label: weekend ?? prettyDate(post.date),
-    description: truncate(intro ?? title),
+    label: (weekend ?? prettyDate(post.date)).toLowerCase(),
+    description: truncate(intro ?? title).toLowerCase(),
     photo: photo && `posts/images/${photo}`,
     card,
     image: card ? `${SITE}/${card}` : null,
@@ -84,6 +85,8 @@ function postMeta(post) {
 const jsonLd = (data) => JSON.stringify(data).replace(/</g, "\\u003c");
 
 function page({ title, description, path, root, body, image, type = "website", schema, noindex = false }) {
+  title = title.toLowerCase();
+  description = description.toLowerCase();
   const url = `${SITE}/${path}`;
   const fullTitle = path === "" ? title : `${title} · ${config.title}`;
   const meta = [
@@ -133,8 +136,12 @@ ${body}
 // GitHub). The homepage and post pages sit at different depths, so point
 // those paths at the site root.
 function render(markdown, root) {
-  const fixed = markdown.replace(/(!\[[^\]]*\]\()images\//g, `$1${root}posts/images/`);
-  return marked.parse(fixed).replace(/<img /g, '<img loading="lazy" decoding="async" ');
+  const fixed = tidyMarkdown(markdown)
+    .replace(/^## .+$/gm, (heading) => WEEKEND.test(heading) ? `## london, ${heading.match(WEEKEND)[0]}` : heading)
+    .replace(/(!\[[^\]]*\]\()images\//g, `$1${root}posts/images/`);
+  return marked.parse(fixed)
+    .replace(/<p><strong>(?=(?:Fri|Sat|Sun|Friday|Saturday|Sunday|Venue|When|Go)\b)/gi, '<p class="pick-details"><strong>')
+    .replace(/<img /g, '<img loading="lazy" decoding="async" ');
 }
 
 function article(post, root) {
@@ -193,7 +200,7 @@ function feed(posts) {
   <title>${escape(config.title)}</title>
   <link>${SITE}/</link>
   <atom:link href="${SITE}/feed.xml" rel="self" type="application/rss+xml"/>
-  <description>${escape(config.summary)}</description>
+  <description>${escape(config.summary.toLowerCase())}</description>
   <language>en-GB</language>
 ${items.join("\n")}
 </channel>

@@ -10,9 +10,10 @@
 //   FORCE=true      skip the day/time check (manual runs)
 
 import { existsSync } from "node:fs";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { MODEL, EFFORT, respond } from "./claude.mjs";
 import { addImages } from "./images.mjs";
+import { featuredPicks, tidyMarkdown } from "./editorial.mjs";
 
 const TZ = "Europe/London";
 
@@ -69,10 +70,16 @@ async function main() {
   if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) throw new Error("CLAUDE_CODE_OAUTH_TOKEN is not set");
 
   console.log(`Generating ${file} with ${MODEL} (${EFFORT})…`);
+  const recent = (existsSync("posts") ? await readdir("posts") : [])
+    .filter((name) => /^\d{4}-\d{2}-\d{2}\.md$/.test(name) && name.slice(0, 10) < now.date)
+    .sort().reverse().slice(0, 6);
+  const history = await Promise.all(recent.map(async (name) =>
+    `${name.slice(0, 10)}:\n${featuredPicks(await readFile(`posts/${name}`, "utf8")).map((pick) => `- ${pick}`).join("\n")}`));
   let text = await respond({
-    prompt: `${preamble(now)}\n\n${await loadPrompt()}`,
+    prompt: `${preamble(now)}\n\n${await loadPrompt()}\n\nAlready featured (publication dates):\n${history.join("\n") || "None yet."}\nDo not repeat these picks. Only revisit a long-running exhibition or classic after at least three weeks, and explain why it is still worth it.`,
     research: true,
   });
+  text = tidyMarkdown(text);
 
   // Photos are a bonus. If anything goes wrong, publish without them.
   try {
