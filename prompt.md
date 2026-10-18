@@ -1,5 +1,5 @@
 <!--
-  This is the prompt sent to ChatGPT every Wednesday at 8am UK time.
+  This is the prompt sent to Claude Code every Wednesday at 8am UK time.
   Everything below this comment is sent as-is. The script adds today's date
   and an instruction to reply in Markdown only.
 -->

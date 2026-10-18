@@ -1,4 +1,4 @@
-// Sends prompt.md to the OpenAI API and saves the reply as posts/YYYY-MM-DD.md,
+// Sends prompt.md to Claude Code and saves the reply as posts/YYYY-MM-DD.md,
 // with a few photos picked by scripts/images.mjs.
 //
 // Runs from GitHub Actions on Wednesdays. GitHub cron only speaks UTC, so the
@@ -6,13 +6,12 @@
 // it's actually Wednesday 8am (or later) in London — that covers GMT and BST.
 //
 // Env:
-//   OPENAI_API_KEY  required
-//   OPENAI_MODEL    optional, see scripts/openai.mjs
+//   CLAUDE_CODE_OAUTH_TOKEN  required (Claude subscription)
 //   FORCE=true      skip the day/time check (manual runs)
 
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { model, respond } from "./openai.mjs";
+import { MODEL, EFFORT, respond } from "./claude.mjs";
 import { addImages } from "./images.mjs";
 
 const TZ = "Europe/London";
@@ -67,12 +66,12 @@ async function main() {
     console.log(`${file} already exists. Skipping.`);
     return;
   }
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) throw new Error("CLAUDE_CODE_OAUTH_TOKEN is not set");
 
-  console.log(`Generating ${file} with ${model()}…`);
+  console.log(`Generating ${file} with ${MODEL} (${EFFORT})…`);
   let text = await respond({
-    input: `${preamble(now)}\n\n${await loadPrompt()}`,
-    tools: [{ type: "web_search" }],
+    prompt: `${preamble(now)}\n\n${await loadPrompt()}`,
+    research: true,
   });
 
   // Photos are a bonus. If anything goes wrong, publish without them.

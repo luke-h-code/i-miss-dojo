@@ -22,7 +22,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
-import { respond } from "./openai.mjs";
+import { respond } from "./claude.mjs";
 
 const TARGET = 4; // photos per issue, at most
 const MIN_SCORE = 7; // out of 10
@@ -351,21 +351,21 @@ async function judgeWithAI(photos) {
   for (let i = 0; i < photos.length; i += BATCH) {
     const content = [
       {
-        type: "input_text",
+        type: "text",
         text: `${criteria}\n\nPhotos scoring ${MIN_SCORE} or more get published. For every photo below, give its id, a score, a one-line reason, and short alt text describing the photo for screen readers.`,
       },
     ];
     for (const photo of photos.slice(i, i + BATCH)) {
       const excerpt = photo.pick.text.replace(/\]\([^)]*\)/g, "]").replace(/\s+/g, " ").trim().slice(0, 300);
       content.push(
-        { type: "input_text", text: `Photo ${photo.id}, for "${photo.pick.heading}" in "${photo.pick.section}": ${excerpt}` },
-        { type: "input_image", image_url: `data:${photo.mime};base64,${photo.bytes.toString("base64")}` },
+        { type: "text", text: `Photo ${photo.id}, for "${photo.pick.heading}" in "${photo.pick.section}": ${excerpt}` },
+        { type: "image", source: { type: "base64", media_type: photo.mime, data: photo.bytes.toString("base64") } },
       );
     }
 
     const reply = await respond({
-      input: [{ role: "user", content }],
-      text: { format: { type: "json_schema", name: "photo_scores", strict: true, schema: SCHEMA } },
+      content,
+      schema: SCHEMA,
     });
     for (const v of JSON.parse(reply).photos) verdicts.set(v.id, v);
   }
